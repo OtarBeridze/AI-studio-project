@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DayPicker } from 'react-day-picker';
-import { format } from 'date-fns';
+import { format, startOfToday } from 'date-fns';
 import 'react-day-picker/dist/style.css';
 
 const CITIES = [
@@ -277,6 +277,7 @@ export default function App() {
                           setSelectedDate(date);
                           setShowDatePicker(false);
                         }}
+                        disabled={{ before: startOfToday() }}
                         modifiersClassNames={{
                           selected: 'bg-indigo-600 text-white rounded-lg',
                           today: 'text-indigo-600 font-bold underline'
