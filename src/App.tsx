@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DayPicker } from 'react-day-picker';
 import { format, startOfToday } from 'date-fns';
@@ -51,20 +51,27 @@ export default function App() {
   const [activeField, setActiveField] = useState<'from' | 'to' | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [showPassengerDropdown, setShowPassengerDropdown] = useState(false);
   
   const fromRef = useRef<HTMLDivElement>(null);
   const toRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const passengerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const isOutsideFrom = fromRef.current && !fromRef.current.contains(event.target as Node);
       const isOutsideTo = toRef.current && !toRef.current.contains(event.target as Node);
       const isOutsideDatePicker = datePickerRef.current && !datePickerRef.current.contains(event.target as Node);
+      const isOutsidePassenger = passengerRef.current && !passengerRef.current.contains(event.target as Node);
       
-      if (isOutsideFrom && isOutsideTo && isOutsideDatePicker) {
+      if (isOutsideFrom && isOutsideTo && isOutsideDatePicker && isOutsidePassenger) {
         setActiveField(null);
         setShowDatePicker(false);
+        setShowPassengerDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -249,6 +256,32 @@ export default function App() {
 
             {/* Extra Options */}
             <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-100">
+              {/* Trip Type Selector */}
+              <div className="flex bg-slate-50 p-1 rounded-full border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setTripType('one-way')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    tripType === 'one-way'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  One-Way
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTripType('round-trip')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    tripType === 'round-trip'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Round Trip
+                </button>
+              </div>
+
               <div className="relative" ref={datePickerRef}>
                 <div 
                   onClick={() => setShowDatePicker(!showDatePicker)}
@@ -292,9 +325,94 @@ export default function App() {
                   )}
                 </AnimatePresence>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
-                <Users className="w-4 h-4" />
-                <span>1 Passenger, Economy</span>
+
+              <div className="relative" ref={passengerRef}>
+                <div 
+                  onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
+                  className={`flex items-center gap-2 text-sm px-4 py-2 rounded-full border transition-all cursor-pointer ${
+                    showPassengerDropdown || (adults + children > 1)
+                      ? 'bg-indigo-50 text-indigo-600 border-indigo-200 font-medium' 
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>
+                    {adults + children} {adults + children === 1 ? 'Passenger' : 'Passengers'}
+                  </span>
+                </div>
+
+                <AnimatePresence>
+                  {showPassengerDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute bottom-full mb-4 left-0 z-50 bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 w-64"
+                    >
+                      <div className="space-y-6">
+                        {/* Adults */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">Adults</p>
+                            <p className="text-xs text-slate-400">Age 12+</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              type="button"
+                              onClick={() => setAdults(Math.max(1, adults - 1))}
+                              className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-30"
+                              disabled={adults <= 1}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm font-bold w-4 text-center">{adults}</span>
+                            <button 
+                              type="button"
+                              onClick={() => setAdults(adults + 1)}
+                              className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Children */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">Children</p>
+                            <p className="text-xs text-slate-400">Age 2-11</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              type="button"
+                              onClick={() => setChildren(Math.max(0, children - 1))}
+                              className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-30"
+                              disabled={children <= 0}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm font-bold w-4 text-center">{children}</span>
+                            <button 
+                              type="button"
+                              onClick={() => setChildren(children + 1)}
+                              className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPassengerDropdown(false)}
+                          className="w-full bg-indigo-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors mt-2"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </form>
