@@ -4,8 +4,11 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft } from 'lucide-react';
+import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { DayPicker } from 'react-day-picker';
+import { format } from 'date-fns';
+import 'react-day-picker/dist/style.css';
 
 const CITIES = [
   'London, United Kingdom',
@@ -46,17 +49,22 @@ export default function App() {
   const [to, setTo] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [activeField, setActiveField] = useState<'from' | 'to' | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const fromRef = useRef<HTMLDivElement>(null);
   const toRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const isOutsideFrom = fromRef.current && !fromRef.current.contains(event.target as Node);
       const isOutsideTo = toRef.current && !toRef.current.contains(event.target as Node);
+      const isOutsideDatePicker = datePickerRef.current && !datePickerRef.current.contains(event.target as Node);
       
-      if (isOutsideFrom && isOutsideTo) {
+      if (isOutsideFrom && isOutsideTo && isOutsideDatePicker) {
         setActiveField(null);
+        setShowDatePicker(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -241,9 +249,47 @@ export default function App() {
 
             {/* Extra Options */}
             <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
-                <Calendar className="w-4 h-4" />
-                <span>Select Dates</span>
+              <div className="relative" ref={datePickerRef}>
+                <div 
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className={`flex items-center gap-2 text-sm px-4 py-2 rounded-full border transition-all cursor-pointer ${
+                    selectedDate 
+                      ? 'bg-indigo-50 text-indigo-600 border-indigo-200 font-medium' 
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>{selectedDate ? format(selectedDate, 'PPP') : 'Select Dates'}</span>
+                </div>
+
+                <AnimatePresence>
+                  {showDatePicker && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute bottom-full mb-4 left-0 z-50 bg-white p-4 rounded-3xl shadow-2xl border border-slate-100"
+                    >
+                      <DayPicker
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          setSelectedDate(date);
+                          setShowDatePicker(false);
+                        }}
+                        modifiersClassNames={{
+                          selected: 'bg-indigo-600 text-white rounded-lg',
+                          today: 'text-indigo-600 font-bold underline'
+                        }}
+                        styles={{
+                          caption: { color: '#4f46e5' },
+                          head_cell: { color: '#94a3b8', fontWeight: '600', fontSize: '0.75rem', textTransform: 'uppercase' },
+                          day: { borderRadius: '8px', transition: 'all 0.2s' }
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
                 <Users className="w-4 h-4" />
