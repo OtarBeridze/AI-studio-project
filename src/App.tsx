@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight, Plus, Minus, ChevronDown } from 'lucide-react';
+import { Plane, MapPin, Search, Calendar, Users, ArrowRightLeft, ChevronLeft, ChevronRight, Plus, Minus, ChevronDown, Wifi, WifiOff, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DayPicker } from 'react-day-picker';
-import { format, startOfToday } from 'date-fns';
+import { format, startOfToday, addDays } from 'date-fns';
 import 'react-day-picker/dist/style.css';
 
 const CITIES = [
@@ -47,7 +47,9 @@ const CITIES = [
 export default function App() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [originCode, setOriginCode] = useState('');
+  const [destinationCode, setDestinationCode] = useState('');
+  const [suggestions, setSuggestions] = useState<{name: string, iataCode: string, subType: string}[]>([]);
   const [activeField, setActiveField] = useState<'from' | 'to' | null>(null);
   const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined);
   const [returnDate, setReturnDate] = useState<Date | undefined>(undefined);
@@ -59,7 +61,11 @@ export default function App() {
   const [showPassengerDropdown, setShowPassengerDropdown] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [sortBy, setSortBy] = useState('Cheapest');
+  const [flights, setFlights] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [amadeusStatus, setAmadeusStatus] = useState<'loading' | 'connected' | 'error'>('loading');
   
   const fromRef = useRef<HTMLDivElement>(null);
   const toRef = useRef<HTMLDivElement>(null);
@@ -86,24 +92,77 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch('/api/amadeus-status');
+        const data = await response.json();
+        if (data.status === 'connected') {
+          setAmadeusStatus('connected');
+        } else {
+          setAmadeusStatus('error');
+        }
+      } catch (err) {
+        setAmadeusStatus('error');
+      }
+    };
+    checkStatus();
+  }, []);
+
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
   const handleCityChange = (value: string, field: 'from' | 'to') => {
     if (field === 'from') setFrom(value);
     else setTo(value);
 
-    if (value.length > 2) {
-      const filtered = CITIES.filter(city => 
-        city.toLowerCase().includes(value.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setActiveField(filtered.length > 0 ? field : null);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (value.length >= 3) {
+      setIsSuggestionsLoading(true);
+      setActiveField(field);
+      
+      searchTimeout.current = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/city-search?keyword=${encodeURIComponent(value)}`);
+          const data = await response.json();
+          
+          if (data.data) {
+            const filtered = data.data.map((loc: any) => {
+              const isAirport = loc.subType === 'AIRPORT';
+              const name = isAirport 
+                ? `${loc.name} (${loc.iataCode}), ${loc.address.cityName}`
+                : `${loc.address.cityName}, ${loc.address.countryName} (${loc.iataCode})`;
+              return {
+                name,
+                iataCode: loc.iataCode,
+                subType: loc.subType
+              };
+            });
+            
+            setSuggestions(filtered);
+            setActiveField(filtered.length > 0 ? field : null);
+          }
+        } catch (err) {
+          console.error("City search error:", err);
+        } finally {
+          setIsSuggestionsLoading(false);
+        }
+      }, 300);
     } else {
+      setSuggestions([]);
       setActiveField(null);
+      setIsSuggestionsLoading(false);
     }
   };
 
-  const selectSuggestion = (city: string) => {
-    if (activeField === 'from') setFrom(city);
-    else if (activeField === 'to') setTo(city);
+  const selectSuggestion = (suggestion: {name: string, iataCode: string, subType: string}) => {
+    if (activeField === 'from') {
+      setFrom(suggestion.name);
+      setOriginCode(suggestion.iataCode);
+    } else if (activeField === 'to') {
+      setTo(suggestion.name);
+      setDestinationCode(suggestion.iataCode);
+    }
     setActiveField(null);
   };
 
@@ -113,69 +172,110 @@ export default function App() {
     setTo(temp);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let currentOriginCode = originCode;
+    let currentDestinationCode = destinationCode;
+
     setIsSearching(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError(null);
+    
+    try {
+      // Resolve origin if missing
+      if (!currentOriginCode && from) {
+        const response = await fetch(`/api/city-search?keyword=${from}`);
+        const data = await response.json();
+        if (data.data && data.data.length > 0) {
+          currentOriginCode = data.data[0].iataCode;
+        }
+      }
+
+      // Resolve destination if missing
+      if (!currentDestinationCode && to) {
+        const response = await fetch(`/api/city-search?keyword=${to}`);
+        const data = await response.json();
+        if (data.data && data.data.length > 0) {
+          currentDestinationCode = data.data[0].iataCode;
+        }
+      }
+
+      if (!currentOriginCode || !currentDestinationCode) {
+        setError("Please select origin and destination");
+        setIsSearching(false);
+        return;
+      }
+
+      // If departure date is missing, default to tomorrow
+      const searchDepartureDate = departureDate || addDays(new Date(), 1);
+
+      const params = new URLSearchParams({
+        originLocationCode: currentOriginCode,
+        destinationLocationCode: currentDestinationCode,
+        departureDate: format(searchDepartureDate, 'yyyy-MM-dd'),
+        adults: adults.toString(),
+        children: children.toString(),
+      });
+
+      if (tripType === 'round-trip') {
+        // If return date is missing for round trip, default to 7 days after departure
+        const searchReturnDate = returnDate || addDays(searchDepartureDate, 7);
+        params.append('returnDate', format(searchReturnDate, 'yyyy-MM-dd'));
+      }
+
+      const response = await fetch(`/api/flight-search?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.data) {
+        const mappedFlights = data.data.map((offer: any) => {
+          const itinerary = offer.itineraries[0];
+          const segment = itinerary.segments[0];
+          const arrivalSegment = itinerary.segments[itinerary.segments.length - 1];
+          
+          // Helper to parse duration PT2H5M -> 2 hr 5 min
+          const durationMatch = itinerary.duration.match(/PT(\d+H)?(\d+M)?/);
+          const hours = durationMatch[1] ? durationMatch[1].replace('H', '') : '0';
+          const mins = durationMatch[2] ? durationMatch[2].replace('M', '') : '0';
+          const durationStr = `${hours} hr ${mins} min`;
+          const durationMinutes = parseInt(hours) * 60 + parseInt(mins);
+
+          return {
+            id: offer.id,
+            airline: data.dictionaries.carriers[segment.carrierCode] || segment.carrierCode,
+            logo: `https://api.duffel.com/img/airlines/for_80x80_pixel_background/${segment.carrierCode}.png`, // Using a common airline logo API
+            departureTime: format(new Date(segment.departure.at), 'h:mm a'),
+            arrivalTime: format(new Date(arrivalSegment.arrival.at), 'h:mm a'),
+            duration: durationStr,
+            durationMinutes: durationMinutes,
+            price: parseFloat(offer.price.total),
+            stops: itinerary.segments.length > 1 ? `${itinerary.segments.length - 1} stop` : 'Nonstop',
+            class: offer.travelerPricings[0].fareDetailsBySegment[0].cabin,
+            airportCodes: `${segment.departure.iataCode}–${arrivalSegment.arrival.iataCode}`,
+            co2: 'N/A', // Amadeus doesn't provide CO2 in the basic search
+            emissionsDiff: 'avg emissions',
+            operatedBy: segment.operating?.carrierCode ? `Operated by ${data.dictionaries.carriers[segment.operating.carrierCode] || segment.operating.carrierCode}` : ''
+          };
+        });
+        setFlights(mappedFlights);
+        setShowResults(true);
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+      } else {
+        setFlights([]);
+        setError("No flights found for this search.");
+      }
+    } catch (err: any) {
+      console.error("Search error:", err);
+      setError(err.message || "An error occurred while searching for flights.");
+    } finally {
       setIsSearching(false);
-      setShowResults(true);
-      window.scrollTo({ top: 300, behavior: 'smooth' });
-    }, 1500);
+    }
   };
 
-  const MOCK_FLIGHTS = [
-    {
-      id: 1,
-      airline: 'Transavia',
-      logo: 'https://picsum.photos/seed/transavia/100/100',
-      departureTime: '8:45 PM',
-      arrivalTime: '10:50 PM',
-      duration: '2 hr 5 min',
-      durationMinutes: 125,
-      price: 118,
-      stops: 'Nonstop',
-      class: 'Economy',
-      airportCodes: 'VLC–ORY',
-      co2: '87 kg CO2e',
-      emissionsDiff: '-24% emissions',
-      operatedBy: ''
-    },
-    {
-      id: 2,
-      airline: 'Vueling',
-      logo: 'https://picsum.photos/seed/vueling/100/100',
-      departureTime: '8:25 PM',
-      arrivalTime: '10:30 PM',
-      duration: '2 hr 5 min',
-      durationMinutes: 125,
-      price: 141,
-      stops: 'Nonstop',
-      class: 'Economy',
-      airportCodes: 'VLC–ORY',
-      co2: '105 kg CO2e',
-      emissionsDiff: '-8% emissions',
-      operatedBy: 'Iberia'
-    },
-    {
-      id: 3,
-      airline: 'Air France',
-      logo: 'https://picsum.photos/seed/airfrance/100/100',
-      departureTime: '6:50 PM',
-      arrivalTime: '9:05 PM',
-      duration: '2 hr 15 min',
-      durationMinutes: 135,
-      price: 205,
-      stops: 'Nonstop',
-      class: 'Economy',
-      airportCodes: 'VLC–CDG',
-      co2: '136 kg CO2e',
-      emissionsDiff: '+19% emissions',
-      operatedBy: 'Operated by HOP!'
-    }
-  ];
-
-  const sortedFlights = [...MOCK_FLIGHTS].sort((a, b) => {
+  const sortedFlights = [...flights].sort((a, b) => {
     if (sortBy === 'Cheapest') return a.price - b.price;
     if (sortBy === 'Fastest') return a.durationMinutes - b.durationMinutes;
     return 0; // Best Value could be a mix, for now just default
@@ -192,6 +292,20 @@ export default function App() {
           <span className="text-xl font-bold tracking-tight">SkyBound</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+            {amadeusStatus === 'loading' && (
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            )}
+            {amadeusStatus === 'connected' && (
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            )}
+            {amadeusStatus === 'error' && (
+              <div className="w-2 h-2 rounded-full bg-rose-500" />
+            )}
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Amadeus: {amadeusStatus}
+            </span>
+          </div>
           <a href="#" className="hover:text-indigo-600 transition-colors">Discover</a>
           <a href="#" className="hover:text-indigo-600 transition-colors">My Bookings</a>
           <a href="#" className="hover:text-indigo-600 transition-colors">Support</a>
@@ -235,7 +349,11 @@ export default function App() {
               <div className="relative">
                 <div 
                   className="flex items-center gap-1 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded transition-colors"
-                  onClick={() => setTripType(tripType === 'one-way' ? 'round-trip' : 'one-way')}
+                  onClick={() => {
+                    const newType = tripType === 'one-way' ? 'round-trip' : 'one-way';
+                    setTripType(newType);
+                    if (newType === 'one-way') setReturnDate(undefined);
+                  }}
                 >
                   <ArrowRightLeft className="w-4 h-4" />
                   <span className="font-medium">{tripType === 'one-way' ? 'One way' : 'Round trip'}</span>
@@ -344,16 +462,34 @@ export default function App() {
                       exit={{ opacity: 0, y: -10 }}
                       className="absolute z-50 w-full top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"
                     >
-                      {suggestions.map((city, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectSuggestion(city)}
-                          className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors"
-                        >
-                          <MapPin className="w-4 h-4 text-slate-400" />
-                          <span className="text-sm font-medium text-slate-700">{city}</span>
+                      {isSuggestionsLoading ? (
+                        <div className="px-4 py-8 flex flex-col items-center justify-center gap-3">
+                          <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                          <span className="text-xs text-slate-400 font-medium">Searching locations...</span>
                         </div>
-                      ))}
+                      ) : suggestions.length > 0 ? (
+                        suggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            onClick={() => selectSuggestion(suggestion)}
+                            className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0"
+                          >
+                            {suggestion.subType === 'AIRPORT' ? (
+                              <Plane className="w-4 h-4 text-indigo-500" />
+                            ) : (
+                              <MapPin className="w-4 h-4 text-slate-400" />
+                            )}
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-700">{suggestion.name}</span>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{suggestion.subType}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <span className="text-sm text-slate-400">No locations found</span>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -390,16 +526,34 @@ export default function App() {
                       exit={{ opacity: 0, y: -10 }}
                       className="absolute z-50 w-full top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"
                     >
-                      {suggestions.map((city, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectSuggestion(city)}
-                          className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors"
-                        >
-                          <MapPin className="w-4 h-4 text-slate-400" />
-                          <span className="text-sm font-medium text-slate-700">{city}</span>
+                      {isSuggestionsLoading ? (
+                        <div className="px-4 py-8 flex flex-col items-center justify-center gap-3">
+                          <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                          <span className="text-xs text-slate-400 font-medium">Searching locations...</span>
                         </div>
-                      ))}
+                      ) : suggestions.length > 0 ? (
+                        suggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            onClick={() => selectSuggestion(suggestion)}
+                            className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0"
+                          >
+                            {suggestion.subType === 'AIRPORT' ? (
+                              <Plane className="w-4 h-4 text-indigo-500" />
+                            ) : (
+                              <MapPin className="w-4 h-4 text-slate-400" />
+                            )}
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-700">{suggestion.name}</span>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{suggestion.subType}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-6 text-center">
+                          <span className="text-sm text-slate-400">No locations found</span>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -473,8 +627,15 @@ export default function App() {
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-medium">
+                {error}
+              </div>
+            )}
+
             {/* Search Button (Floating or integrated) */}
-            <div className="flex justify-center -mb-10">
+            <div className="flex flex-col items-center gap-4 -mb-10">
               <button
                 type="submit"
                 disabled={isSearching}
@@ -560,7 +721,7 @@ export default function App() {
                   {/* Price & Action */}
                   <div className="w-full md:w-40 flex flex-row md:flex-col items-center justify-between md:justify-center gap-1 pl-0 md:pl-6 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0">
                     <div className="text-left md:text-center">
-                      <p className="text-xl font-bold text-green-600">€{tripType === 'round-trip' ? flight.price * 1.8 : flight.price}</p>
+                      <p className="text-xl font-bold text-green-600">€{flight.price}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{tripType === 'round-trip' ? 'round trip' : 'one way'}</p>
                     </div>
                     <ChevronDown className="w-5 h-5 text-slate-400" />
