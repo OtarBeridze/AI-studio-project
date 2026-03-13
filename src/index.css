@@ -6,3 +6,71 @@
   --font-display: "Outfit", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
+
+/* Custom DayPicker Styles to match image */
+.rdp {
+  --rdp-cell-size: 40px;
+  --rdp-accent-color: #2563eb;
+  --rdp-background-color: #eff6ff;
+  margin: 0;
+  position: relative;
+}
+
+.rdp-months {
+  display: flex;
+  gap: 2rem;
+}
+
+.rdp-day_selected {
+  background-color: var(--rdp-accent-color) !important;
+  color: white !important;
+  border-radius: 8px !important;
+}
+
+.rdp-day:hover:not(.rdp-day_selected) {
+  background-color: #f1f5f9;
+  border-radius: 8px;
+}
+
+.rdp-weekday {
+  font-weight: 500;
+  color: #64748b;
+  font-size: 0.875rem;
+  text-transform: capitalize;
+  padding-bottom: 0.5rem;
+}
+
+.rdp-month_caption {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #1e293b;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.rdp-nav {
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  width: 100%;
+  left: 0;
+  padding: 0 1rem;
+  top: 1.5rem;
+  pointer-events: none;
+}
+
+.rdp-button_next, .rdp-button_previous {
+  pointer-events: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.rdp-button_next:hover, .rdp-button_previous:hover {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}

@@ -200,26 +200,23 @@ export default function App() {
         }
       }
 
-      if (!currentOriginCode || !currentDestinationCode) {
-        setError("Please select origin and destination");
+      if (!currentOriginCode || !currentDestinationCode || !departureDate) {
+        setError("Please select origin, destination, and a departure date to search.");
         setIsSearching(false);
         return;
       }
 
-      // If departure date is missing, default to tomorrow
-      const searchDepartureDate = departureDate || addDays(new Date(), 1);
-
       const params = new URLSearchParams({
         originLocationCode: currentOriginCode,
         destinationLocationCode: currentDestinationCode,
-        departureDate: format(searchDepartureDate, 'yyyy-MM-dd'),
+        departureDate: format(departureDate, 'yyyy-MM-dd'),
         adults: adults.toString(),
         children: children.toString(),
       });
 
       if (tripType === 'round-trip') {
         // If return date is missing for round trip, default to 7 days after departure
-        const searchReturnDate = returnDate || addDays(searchDepartureDate, 7);
+        const searchReturnDate = returnDate || addDays(departureDate, 7);
         params.append('returnDate', format(searchReturnDate, 'yyyy-MM-dd'));
       }
 
@@ -248,6 +245,7 @@ export default function App() {
             airline: data.dictionaries.carriers[segment.carrierCode] || segment.carrierCode,
             logo: `https://api.duffel.com/img/airlines/for_80x80_pixel_background/${segment.carrierCode}.png`, // Using a common airline logo API
             departureTime: format(new Date(segment.departure.at), 'h:mm a'),
+            departureDateFormatted: format(new Date(segment.departure.at), 'd MMM'),
             arrivalTime: format(new Date(arrivalSegment.arrival.at), 'h:mm a'),
             duration: durationStr,
             durationMinutes: durationMinutes,
@@ -447,7 +445,7 @@ export default function App() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Where from?"
+                  placeholder="Where from (departure city)"
                   value={from}
                   onChange={(e) => handleCityChange(e.target.value, 'from')}
                   className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium"
@@ -511,7 +509,7 @@ export default function App() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Where to?"
+                  placeholder="Where to (destination city)"
                   value={to}
                   onChange={(e) => handleCityChange(e.target.value, 'to')}
                   className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium"
@@ -560,11 +558,20 @@ export default function App() {
               </div>
 
               <div className="flex-1 flex items-center border border-slate-300 rounded-lg overflow-hidden divide-x divide-slate-300">
-                <div className="flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative" ref={departurePickerRef} onClick={() => setShowDeparturePicker(!showDeparturePicker)}>
-                  <Calendar className="w-4 h-4 text-slate-400 mr-3" />
-                  <span className="text-slate-800 font-medium whitespace-nowrap">
-                    {departureDate ? format(departureDate, 'EEE, MMM d') : 'Departure'}
-                  </span>
+                <div 
+                  className="flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group" 
+                  ref={departurePickerRef} 
+                  onClick={() => setShowDeparturePicker(!showDeparturePicker)}
+                >
+                  <Calendar className={`w-4 h-4 mr-3 transition-colors ${departureDate ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`} />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1">
+                      Departure – Select Date <span className="text-rose-500">*</span>
+                    </span>
+                    <span className={`font-medium whitespace-nowrap ${departureDate ? 'text-slate-800' : 'text-slate-400'}`}>
+                      {departureDate ? format(departureDate, 'EEE, MMM d') : 'Select date'}
+                    </span>
+                  </div>
                   
                   <AnimatePresence>
                     {showDeparturePicker && (
@@ -572,34 +579,61 @@ export default function App() {
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full left-0 mt-2 z-50 bg-white p-4 rounded-xl shadow-2xl border border-slate-200"
+                        className="absolute top-full left-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 min-w-[640px]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <DayPicker
                           mode="single"
+                          numberOfMonths={2}
+                          pagedNavigation
+                          weekStartsOn={1}
                           selected={departureDate}
                           onSelect={(date) => {
-                            setDepartureDate(date);
-                            setShowDeparturePicker(false);
-                            if (returnDate && date && returnDate < date) setReturnDate(undefined);
+                            if (date) {
+                              setDepartureDate(date);
+                              setShowDeparturePicker(false);
+                              if (returnDate && returnDate < date) setReturnDate(undefined);
+                            }
                           }}
                           disabled={{ before: startOfToday() }}
+                          classNames={{
+                            months: "flex flex-col sm:flex-row space-y-4 sm:space-x-8 sm:space-y-0",
+                            month: "space-y-4",
+                            caption: "flex justify-center pt-1 relative items-center mb-4",
+                            caption_label: "text-sm font-bold text-slate-900",
+                            nav: "space-x-1 flex items-center",
+                            nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 transition-opacity",
+                            nav_button_previous: "absolute left-1",
+                            nav_button_next: "absolute right-1",
+                            table: "w-full border-collapse space-y-1",
+                            head_row: "flex",
+                            head_cell: "text-slate-400 rounded-md w-9 font-medium text-[12px] uppercase tracking-wider",
+                            row: "flex w-full mt-2",
+                            cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-slate-100 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100 hover:bg-slate-100 rounded-md transition-colors",
+                            day_selected: "bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white focus:bg-indigo-600 focus:text-white rounded-md",
+                            day_today: "bg-slate-100 text-slate-900",
+                            day_outside: "text-slate-300 opacity-50",
+                            day_disabled: "text-slate-300 opacity-50",
+                            day_range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                            day_hidden: "invisible",
+                          }}
                         />
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
                 <div 
-                  className={`flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative ${tripType === 'one-way' ? 'opacity-50' : ''}`} 
+                  className={`flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group ${tripType === 'one-way' ? 'opacity-50' : ''}`} 
                   ref={returnPickerRef} 
                   onClick={() => tripType === 'round-trip' && setShowReturnPicker(!showReturnPicker)}
                 >
-                  <span className="text-slate-800 font-medium whitespace-nowrap flex-1">
-                    {returnDate ? format(returnDate, 'EEE, MMM d') : 'Return'}
-                  </span>
-                  <div className="flex items-center gap-2 ml-2">
-                    <ChevronLeft className="w-4 h-4 text-slate-400" />
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <Calendar className={`w-4 h-4 mr-3 transition-colors ${returnDate ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`} />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Return</span>
+                    <span className={`font-medium whitespace-nowrap ${returnDate ? 'text-slate-800' : 'text-slate-400'}`}>
+                      {returnDate ? format(returnDate, 'EEE, MMM d') : 'Select date'}
+                    </span>
                   </div>
 
                   <AnimatePresence>
@@ -608,17 +642,44 @@ export default function App() {
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full right-0 mt-2 z-50 bg-white p-4 rounded-xl shadow-2xl border border-slate-200"
+                        className="absolute top-full right-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 min-w-[640px]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <DayPicker
                           mode="single"
+                          numberOfMonths={2}
+                          pagedNavigation
+                          weekStartsOn={1}
                           selected={returnDate}
                           onSelect={(date) => {
-                            setReturnDate(date);
-                            setShowReturnPicker(false);
+                            if (date) {
+                              setReturnDate(date);
+                              setShowReturnPicker(false);
+                            }
                           }}
                           disabled={{ before: departureDate || startOfToday() }}
+                          classNames={{
+                            months: "flex flex-col sm:flex-row space-y-4 sm:space-x-8 sm:space-y-0",
+                            month: "space-y-4",
+                            caption: "flex justify-center pt-1 relative items-center mb-4",
+                            caption_label: "text-sm font-bold text-slate-900",
+                            nav: "space-x-1 flex items-center",
+                            nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 transition-opacity",
+                            nav_button_previous: "absolute left-1",
+                            nav_button_next: "absolute right-1",
+                            table: "w-full border-collapse space-y-1",
+                            head_row: "flex",
+                            head_cell: "text-slate-400 rounded-md w-9 font-medium text-[12px] uppercase tracking-wider",
+                            row: "flex w-full mt-2",
+                            cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-slate-100 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100 hover:bg-slate-100 rounded-md transition-colors",
+                            day_selected: "bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white focus:bg-indigo-600 focus:text-white rounded-md",
+                            day_today: "bg-slate-100 text-slate-900",
+                            day_outside: "text-slate-300 opacity-50",
+                            day_disabled: "text-slate-300 opacity-50",
+                            day_range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                            day_hidden: "invisible",
+                          }}
                         />
                       </motion.div>
                     )}
@@ -691,6 +752,7 @@ export default function App() {
                     />
                     <div>
                       <h3 className="font-bold text-slate-800 leading-tight">{flight.departureTime} – {flight.arrivalTime}</h3>
+                      <p className="text-xs font-medium text-indigo-600 mt-0.5">{flight.departureDateFormatted}</p>
                       <p className="text-sm text-slate-500">{flight.airline} {flight.operatedBy && `· ${flight.operatedBy}`}</p>
                     </div>
                   </div>
