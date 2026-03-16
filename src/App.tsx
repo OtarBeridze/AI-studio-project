@@ -63,6 +63,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const [sortBy, setSortBy] = useState('Cheapest');
+  const [stopsFilter, setStopsFilter] = useState<string[]>(['Nonstop', '1 stop', '2+ stops']);
   const [flights, setFlights] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [amadeusStatus, setAmadeusStatus] = useState<'loading' | 'connected' | 'error'>('loading');
@@ -258,7 +259,9 @@ export default function App() {
             duration: durationStr,
             durationMinutes: durationMinutes,
             price: parseFloat(offer.price.total),
-            stops: itinerary.segments.length > 1 ? `${itinerary.segments.length - 1} stop` : 'Nonstop',
+            stops: itinerary.segments.length > 1 
+              ? itinerary.segments.length === 2 ? '1 stop' : '2+ stops'
+              : 'Nonstop',
             class: offer.travelerPricings[0].fareDetailsBySegment[0].cabin,
             airportCodes: `${segment.departure.iataCode}–${arrivalSegment.arrival.iataCode}`,
             co2: 'N/A', // Amadeus doesn't provide CO2 in the basic search
@@ -281,10 +284,15 @@ export default function App() {
     }
   };
 
-  const sortedFlights = [...flights].sort((a, b) => {
+  const filteredFlights = flights.filter(flight => {
+    if (stopsFilter.length === 0) return true;
+    return stopsFilter.includes(flight.stops);
+  });
+
+  const sortedFlights = [...filteredFlights].sort((a, b) => {
     if (sortBy === 'Cheapest') return a.price - b.price;
     if (sortBy === 'Fastest') return a.durationMinutes - b.durationMinutes;
-    return 0; // Best Value could be a mix, for now just default
+    return 0;
   });
 
   return (
@@ -724,21 +732,52 @@ export default function App() {
               transition={{ duration: 0.5 }}
               className="mt-12 space-y-6"
             >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <h2 className="text-2xl font-bold text-slate-800">
                   Available Flights <span className="text-slate-400 font-normal ml-2">({sortedFlights.length} results)</span>
                 </h2>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-slate-500">Sort by:</span>
-                  <select 
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
-                  >
-                    <option>Cheapest</option>
-                    <option>Fastest</option>
-                    <option>Best Value</option>
-                  </select>
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Stops Filter */}
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-1.5 shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Stops</span>
+                    <div className="flex items-center gap-1">
+                      {['Nonstop', '1 stop', '2+ stops'].map(stop => (
+                        <button
+                          key={stop}
+                          type="button"
+                          onClick={() => {
+                            if (stopsFilter.includes(stop)) {
+                              // Don't allow empty filter if you want to always show something, 
+                              // or allow it to show "all"
+                              setStopsFilter(stopsFilter.filter(s => s !== stop));
+                            } else {
+                              setStopsFilter([...stopsFilter, stop]);
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                            stopsFilter.includes(stop) 
+                              ? 'bg-indigo-600 text-white shadow-sm' 
+                              : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                          }`}
+                        >
+                          {stop}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-500 font-medium">Sort by:</span>
+                    <select 
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600/20 shadow-sm"
+                    >
+                      <option>Cheapest</option>
+                      <option>Fastest</option>
+                      <option>Best Value</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
