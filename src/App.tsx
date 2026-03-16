@@ -49,7 +49,14 @@ export default function App() {
   const [to, setTo] = useState('');
   const [originCode, setOriginCode] = useState('');
   const [destinationCode, setDestinationCode] = useState('');
-  const [suggestions, setSuggestions] = useState<{name: string, iataCode: string, subType: string}[]>([]);
+  const [suggestions, setSuggestions] = useState<{
+    name: string, 
+    iataCode: string, 
+    subType: string,
+    cityName: string,
+    countryName: string,
+    regionName?: string
+  }[]>([]);
   const [activeField, setActiveField] = useState<'from' | 'to' | null>(null);
   const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined);
   const [returnDate, setReturnDate] = useState<Date | undefined>(undefined);
@@ -137,14 +144,13 @@ export default function App() {
           
           if (data.data) {
             const filtered = data.data.map((loc: any) => {
-              const isAirport = loc.subType === 'AIRPORT';
-              const name = isAirport 
-                ? `${loc.name} (${loc.iataCode}), ${loc.address.cityName}`
-                : `${loc.address.cityName}, ${loc.address.countryName} (${loc.iataCode})`;
               return {
-                name,
+                name: loc.name,
                 iataCode: loc.iataCode,
-                subType: loc.subType
+                subType: loc.subType,
+                cityName: loc.address.cityName,
+                countryName: loc.address.countryName,
+                regionName: loc.address.regionCode || loc.address.stateCode
               };
             });
             
@@ -164,12 +170,13 @@ export default function App() {
     }
   };
 
-  const selectSuggestion = (suggestion: {name: string, iataCode: string, subType: string}) => {
+  const selectSuggestion = (suggestion: any) => {
+    const displayName = `${suggestion.cityName} (${suggestion.iataCode})`;
     if (activeField === 'from') {
-      setFrom(suggestion.name);
+      setFrom(displayName);
       setOriginCode(suggestion.iataCode);
     } else if (activeField === 'to') {
-      setTo(suggestion.name);
+      setTo(displayName);
       setDestinationCode(suggestion.iataCode);
     }
     setActiveField(null);
@@ -455,7 +462,7 @@ export default function App() {
 
             {/* Middle Row: Inputs */}
             <div className="flex flex-col lg:flex-row items-stretch gap-2">
-              <div className="flex-1 flex items-center border border-slate-300 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 transition-all relative" ref={fromRef}>
+              <div className="flex-1 flex items-center border border-slate-300 rounded-lg focus-within:ring-1 focus-within:ring-indigo-500 transition-all relative" ref={fromRef}>
                 <div className="pl-4 pr-2">
                   <div className="w-4 h-4 rounded-full border-2 border-slate-400" />
                 </div>
@@ -464,43 +471,52 @@ export default function App() {
                   placeholder="Where from (departure city)"
                   value={from}
                   onChange={(e) => handleCityChange(e.target.value, 'from')}
-                  className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium"
+                  className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium bg-transparent"
                 />
                 
                 {/* Autocomplete Dropdown */}
                 <AnimatePresence>
                   {activeField === 'from' && (
                     <motion.div
-                      initial={{ opacity: 0, y: -10 }}
+                      initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute z-50 w-full top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                      exit={{ opacity: 0, y: 5 }}
+                      className="absolute z-[100] w-full md:w-[450px] top-full left-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-[400px] overflow-y-auto"
                     >
                       {isSuggestionsLoading ? (
-                        <div className="px-4 py-8 flex flex-col items-center justify-center gap-3">
-                          <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-                          <span className="text-xs text-slate-400 font-medium">Searching locations...</span>
+                        <div className="px-4 py-12 flex flex-col items-center justify-center gap-3">
+                          <div className="w-8 h-8 border-3 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                          <span className="text-sm text-slate-400 font-medium">Searching locations...</span>
                         </div>
                       ) : suggestions.length > 0 ? (
-                        suggestions.map((suggestion, index) => (
-                          <div
-                            key={index}
-                            onClick={() => selectSuggestion(suggestion)}
-                            className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0"
-                          >
-                            {suggestion.subType === 'AIRPORT' ? (
-                              <Plane className="w-4 h-4 text-indigo-500" />
-                            ) : (
-                              <MapPin className="w-4 h-4 text-slate-400" />
-                            )}
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-slate-700">{suggestion.name}</span>
-                              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{suggestion.subType}</span>
+                        <div className="py-2">
+                          {suggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              onClick={() => selectSuggestion(suggestion)}
+                              className="px-6 py-4 hover:bg-slate-50 cursor-pointer flex items-start gap-5 transition-colors border-b border-slate-50 last:border-0"
+                            >
+                              <div className="mt-1">
+                                {suggestion.subType === 'AIRPORT' ? (
+                                  <Plane className="w-6 h-6 text-slate-600" />
+                                ) : (
+                                  <MapPin className="w-6 h-6 text-slate-400" />
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[16px] font-bold text-slate-900">{suggestion.iataCode}</span>
+                                  <span className="text-[16px] font-medium text-slate-800">{suggestion.name}</span>
+                                </div>
+                                <span className="text-[14px] text-slate-500 mt-0.5 leading-tight">
+                                  {suggestion.cityName}{suggestion.regionName ? `, ${suggestion.regionName}` : ''}, {suggestion.countryName}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       ) : (
-                        <div className="px-4 py-6 text-center">
+                        <div className="px-4 py-10 text-center">
                           <span className="text-sm text-slate-400">No locations found</span>
                         </div>
                       )}
@@ -519,7 +535,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex-1 flex items-center border border-slate-300 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 transition-all relative" ref={toRef}>
+              <div className="flex-1 flex items-center border border-slate-300 rounded-lg focus-within:ring-1 focus-within:ring-indigo-500 transition-all relative" ref={toRef}>
                 <div className="pl-4 pr-2">
                   <MapPin className="w-4 h-4 text-slate-400" />
                 </div>
@@ -528,43 +544,52 @@ export default function App() {
                   placeholder="Where to (destination city)"
                   value={to}
                   onChange={(e) => handleCityChange(e.target.value, 'to')}
-                  className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium"
+                  className="w-full py-3 pr-4 focus:outline-none text-slate-800 font-medium bg-transparent"
                 />
 
                 {/* Autocomplete Dropdown */}
                 <AnimatePresence>
                   {activeField === 'to' && (
                     <motion.div
-                      initial={{ opacity: 0, y: -10 }}
+                      initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute z-50 w-full top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"
+                      exit={{ opacity: 0, y: 5 }}
+                      className="absolute z-[100] w-full md:w-[450px] top-full left-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-[400px] overflow-y-auto"
                     >
                       {isSuggestionsLoading ? (
-                        <div className="px-4 py-8 flex flex-col items-center justify-center gap-3">
-                          <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-                          <span className="text-xs text-slate-400 font-medium">Searching locations...</span>
+                        <div className="px-4 py-12 flex flex-col items-center justify-center gap-3">
+                          <div className="w-8 h-8 border-3 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                          <span className="text-sm text-slate-400 font-medium">Searching locations...</span>
                         </div>
                       ) : suggestions.length > 0 ? (
-                        suggestions.map((suggestion, index) => (
-                          <div
-                            key={index}
-                            onClick={() => selectSuggestion(suggestion)}
-                            className="px-4 py-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors border-b border-slate-50 last:border-0"
-                          >
-                            {suggestion.subType === 'AIRPORT' ? (
-                              <Plane className="w-4 h-4 text-indigo-500" />
-                            ) : (
-                              <MapPin className="w-4 h-4 text-slate-400" />
-                            )}
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-slate-700">{suggestion.name}</span>
-                              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{suggestion.subType}</span>
+                        <div className="py-2">
+                          {suggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              onClick={() => selectSuggestion(suggestion)}
+                              className="px-6 py-4 hover:bg-slate-50 cursor-pointer flex items-start gap-5 transition-colors border-b border-slate-50 last:border-0"
+                            >
+                              <div className="mt-1">
+                                {suggestion.subType === 'AIRPORT' ? (
+                                  <Plane className="w-6 h-6 text-slate-600" />
+                                ) : (
+                                  <MapPin className="w-6 h-6 text-slate-400" />
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[16px] font-bold text-slate-900">{suggestion.iataCode}</span>
+                                  <span className="text-[16px] font-medium text-slate-800">{suggestion.name}</span>
+                                </div>
+                                <span className="text-[14px] text-slate-500 mt-0.5 leading-tight">
+                                  {suggestion.cityName}{suggestion.regionName ? `, ${suggestion.regionName}` : ''}, {suggestion.countryName}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       ) : (
-                        <div className="px-4 py-6 text-center">
+                        <div className="px-4 py-10 text-center">
                           <span className="text-sm text-slate-400">No locations found</span>
                         </div>
                       )}

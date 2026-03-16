@@ -58,6 +58,10 @@ app.get("/api/amadeus-status", async (req, res) => {
 });
 
 // API Routes
+const EUROPEAN_COUNTRY_CODES = [
+  "AD", "AL", "AT", "AX", "BA", "BE", "BG", "BY", "CH", "CZ", "DE", "DK", "EE", "ES", "FI", "FO", "FR", "GB", "GG", "GI", "GR", "HR", "HU", "IE", "IM", "IS", "IT", "JE", "LI", "LT", "LU", "LV", "MC", "MD", "ME", "MK", "MT", "NL", "NO", "PL", "PT", "RO", "RS", "RU", "SE", "SI", "SJ", "SK", "SM", "UA", "VA"
+];
+
 app.get("/api/city-search", async (req, res) => {
   try {
     const { keyword, subType = "CITY,AIRPORT" } = req.query;
@@ -66,7 +70,7 @@ app.get("/api/city-search", async (req, res) => {
     const token = await getAmadeusToken();
     
     // Using the locations endpoint as it's best for general keyword/IATA search
-    const url = `https://test.api.amadeus.com/v1/reference-data/locations?subType=${subType}&keyword=${keyword}&view=LIGHT&page[limit]=10`;
+    const url = `https://test.api.amadeus.com/v1/reference-data/locations?subType=${subType}&keyword=${keyword}&view=LIGHT&page[limit]=20`;
 
     const response = await fetch(url, {
       headers: {
@@ -75,6 +79,15 @@ app.get("/api/city-search", async (req, res) => {
     });
 
     const data = await response.json();
+    
+    if (data.data) {
+      // Filter results to only include Europe and US
+      data.data = data.data.filter((loc: any) => {
+        const countryCode = loc.address?.countryCode;
+        return countryCode === "US" || EUROPEAN_COUNTRY_CODES.includes(countryCode);
+      });
+    }
+
     res.json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
