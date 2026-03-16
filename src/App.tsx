@@ -139,20 +139,22 @@ export default function App() {
       
       searchTimeout.current = setTimeout(async () => {
         try {
-          const response = await fetch(`/api/city-search?keyword=${encodeURIComponent(value)}`);
+          const response = await fetch(`/api/city-search?keyword=${encodeURIComponent(value)}&subType=AIRPORT`);
           const data = await response.json();
           
           if (data.data) {
-            const filtered = data.data.map((loc: any) => {
-              return {
-                name: loc.name,
-                iataCode: loc.iataCode,
-                subType: loc.subType,
-                cityName: loc.address.cityName,
-                countryName: loc.address.countryName,
-                regionName: loc.address.regionCode || loc.address.stateCode
-              };
-            });
+            const filtered = data.data
+              .filter((loc: any) => loc.subType === 'AIRPORT')
+              .map((loc: any) => {
+                return {
+                  name: loc.name,
+                  iataCode: loc.iataCode,
+                  subType: loc.subType,
+                  cityName: loc.address.cityName,
+                  countryName: loc.address.countryName,
+                  regionName: loc.address.regionCode || loc.address.stateCode
+                };
+              });
             
             setSuggestions(filtered);
             setActiveField(filtered.length > 0 ? field : null);
@@ -497,11 +499,7 @@ export default function App() {
                               className="px-6 py-4 hover:bg-slate-50 cursor-pointer flex items-start gap-5 transition-colors border-b border-slate-50 last:border-0"
                             >
                               <div className="mt-1">
-                                {suggestion.subType === 'AIRPORT' ? (
-                                  <Plane className="w-6 h-6 text-slate-600" />
-                                ) : (
-                                  <MapPin className="w-6 h-6 text-slate-400" />
-                                )}
+                                <Plane className="w-6 h-6 text-slate-600" />
                               </div>
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
@@ -570,11 +568,7 @@ export default function App() {
                               className="px-6 py-4 hover:bg-slate-50 cursor-pointer flex items-start gap-5 transition-colors border-b border-slate-50 last:border-0"
                             >
                               <div className="mt-1">
-                                {suggestion.subType === 'AIRPORT' ? (
-                                  <Plane className="w-6 h-6 text-slate-600" />
-                                ) : (
-                                  <MapPin className="w-6 h-6 text-slate-400" />
-                                )}
+                                <Plane className="w-6 h-6 text-slate-600" />
                               </div>
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
