@@ -75,16 +75,24 @@ export default function App() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const isOutsideFrom = fromRef.current && !fromRef.current.contains(event.target as Node);
-      const isOutsideTo = toRef.current && !toRef.current.contains(event.target as Node);
-      const isOutsideDeparture = departurePickerRef.current && !departurePickerRef.current.contains(event.target as Node);
-      const isOutsideReturn = returnPickerRef.current && !returnPickerRef.current.contains(event.target as Node);
-      const isOutsidePassenger = passengerRef.current && !passengerRef.current.contains(event.target as Node);
+      const target = event.target as Node;
       
-      if (isOutsideFrom && isOutsideTo && isOutsideDeparture && isOutsideReturn && isOutsidePassenger) {
-        setActiveField(null);
+      if (fromRef.current && !fromRef.current.contains(target)) {
+        // Only clear active field if we're not clicking into another field that handles it
+        if (toRef.current && !toRef.current.contains(target)) {
+          setActiveField(null);
+        }
+      }
+      
+      if (departurePickerRef.current && !departurePickerRef.current.contains(target)) {
         setShowDeparturePicker(false);
+      }
+      
+      if (returnPickerRef.current && !returnPickerRef.current.contains(target)) {
         setShowReturnPicker(false);
+      }
+      
+      if (passengerRef.current && !passengerRef.current.contains(target)) {
         setShowPassengerDropdown(false);
       }
     };
@@ -557,9 +565,9 @@ export default function App() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex-1 flex items-center border border-slate-300 rounded-lg overflow-hidden divide-x divide-slate-300">
+              <div className="flex-1 flex items-center border border-slate-300 rounded-lg divide-x divide-slate-300">
                 <div 
-                  className="flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group" 
+                  className="flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group rounded-l-lg" 
                   ref={departurePickerRef} 
                   onClick={() => setShowDeparturePicker(!showDeparturePicker)}
                 >
@@ -576,10 +584,11 @@ export default function App() {
                   <AnimatePresence>
                     {showDeparturePicker && (
                       <motion.div
+                        key="departure-picker"
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full left-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 min-w-[640px]"
+                        className="absolute top-full left-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 w-[90vw] max-w-[640px] lg:w-[640px]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <DayPicker
@@ -599,24 +608,22 @@ export default function App() {
                           classNames={{
                             months: "flex flex-col sm:flex-row space-y-4 sm:space-x-8 sm:space-y-0",
                             month: "space-y-4",
-                            caption: "flex justify-center pt-1 relative items-center mb-4",
-                            caption_label: "text-sm font-bold text-slate-900",
-                            nav: "space-x-1 flex items-center",
-                            nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 transition-opacity",
-                            nav_button_previous: "absolute left-1",
-                            nav_button_next: "absolute right-1",
-                            table: "w-full border-collapse space-y-1",
-                            head_row: "flex",
-                            head_cell: "text-slate-400 rounded-md w-9 font-medium text-[12px] uppercase tracking-wider",
-                            row: "flex w-full mt-2",
-                            cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-slate-100 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100 hover:bg-slate-100 rounded-md transition-colors",
-                            day_selected: "bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white focus:bg-indigo-600 focus:text-white rounded-md",
-                            day_today: "bg-slate-100 text-slate-900",
-                            day_outside: "text-slate-300 opacity-50",
-                            day_disabled: "text-slate-300 opacity-50",
-                            day_range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
-                            day_hidden: "invisible",
+                            month_caption: "flex justify-center pt-1 relative items-center mb-6",
+                            caption_label: "text-base font-bold text-slate-900",
+                            nav: "flex items-center",
+                            button_previous: "absolute left-2 top-2 h-10 w-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-all z-10 shadow-sm",
+                            button_next: "absolute right-2 top-2 h-10 w-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-all z-10 shadow-sm",
+                            month_grid: "w-full border-collapse",
+                            weekdays: "flex mb-2",
+                            weekday: "text-slate-500 w-9 font-semibold text-[13px] text-center",
+                            week: "flex w-full mt-1",
+                            day: "h-9 w-9 p-0 font-medium hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center text-sm text-slate-700",
+                            selected: "bg-blue-600 text-white hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white rounded-lg font-bold",
+                            today: "text-blue-600 font-bold",
+                            outside: "text-slate-300 opacity-50",
+                            disabled: "text-slate-200 opacity-50 cursor-not-allowed",
+                            range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                            hidden: "invisible",
                           }}
                         />
                       </motion.div>
@@ -624,7 +631,7 @@ export default function App() {
                   </AnimatePresence>
                 </div>
                 <div 
-                  className={`flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group ${tripType === 'one-way' ? 'opacity-50' : ''}`} 
+                  className={`flex-1 flex items-center px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors relative group rounded-r-lg ${tripType === 'one-way' ? 'opacity-50' : ''}`} 
                   ref={returnPickerRef} 
                   onClick={() => tripType === 'round-trip' && setShowReturnPicker(!showReturnPicker)}
                 >
@@ -639,10 +646,11 @@ export default function App() {
                   <AnimatePresence>
                     {showReturnPicker && (
                       <motion.div
+                        key="return-picker"
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full right-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 min-w-[640px]"
+                        className="absolute top-full right-0 mt-2 z-50 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 w-[90vw] max-w-[640px] lg:w-[640px]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <DayPicker
@@ -661,24 +669,22 @@ export default function App() {
                           classNames={{
                             months: "flex flex-col sm:flex-row space-y-4 sm:space-x-8 sm:space-y-0",
                             month: "space-y-4",
-                            caption: "flex justify-center pt-1 relative items-center mb-4",
-                            caption_label: "text-sm font-bold text-slate-900",
-                            nav: "space-x-1 flex items-center",
-                            nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 transition-opacity",
-                            nav_button_previous: "absolute left-1",
-                            nav_button_next: "absolute right-1",
-                            table: "w-full border-collapse space-y-1",
-                            head_row: "flex",
-                            head_cell: "text-slate-400 rounded-md w-9 font-medium text-[12px] uppercase tracking-wider",
-                            row: "flex w-full mt-2",
-                            cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-slate-100 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100 hover:bg-slate-100 rounded-md transition-colors",
-                            day_selected: "bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white focus:bg-indigo-600 focus:text-white rounded-md",
-                            day_today: "bg-slate-100 text-slate-900",
-                            day_outside: "text-slate-300 opacity-50",
-                            day_disabled: "text-slate-300 opacity-50",
-                            day_range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
-                            day_hidden: "invisible",
+                            month_caption: "flex justify-center pt-1 relative items-center mb-6",
+                            caption_label: "text-base font-bold text-slate-900",
+                            nav: "flex items-center",
+                            button_previous: "absolute left-2 top-2 h-10 w-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-all z-10 shadow-sm",
+                            button_next: "absolute right-2 top-2 h-10 w-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-all z-10 shadow-sm",
+                            month_grid: "w-full border-collapse",
+                            weekdays: "flex mb-2",
+                            weekday: "text-slate-500 w-9 font-semibold text-[13px] text-center",
+                            week: "flex w-full mt-1",
+                            day: "h-9 w-9 p-0 font-medium hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center text-sm text-slate-700",
+                            selected: "bg-blue-600 text-white hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white rounded-lg font-bold",
+                            today: "text-blue-600 font-bold",
+                            outside: "text-slate-300 opacity-50",
+                            disabled: "text-slate-200 opacity-50 cursor-not-allowed",
+                            range_middle: "aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                            hidden: "invisible",
                           }}
                         />
                       </motion.div>
